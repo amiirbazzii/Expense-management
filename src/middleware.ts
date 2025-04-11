@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const isHomePage = req.nextUrl.pathname === '/';
   const isDashboardPage = req.nextUrl.pathname.startsWith('/dashboard');
+  const isWebhookPage = req.nextUrl.pathname === '/clerk-users-webhook';
   
   // Check for authentication cookies to determine if user is logged in
   const hasAuthCookies = 
@@ -29,6 +30,11 @@ export function middleware(req: NextRequest) {
     return response;
   }
   
+  // Allow requests to the webhook endpoint
+  if (isWebhookPage) {
+    return NextResponse.next(); // Allow the request to proceed
+  }
+
   // Proceed with the request
   return NextResponse.next();
 }
