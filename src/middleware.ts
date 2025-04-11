@@ -1,29 +1,32 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Simple auth check based on cookies
-function isUserAuthenticated(req: NextRequest): boolean {
-  // Check for Clerk's authentication cookies
-  return (
-    req.cookies.has('__clerk_db_jwt') || 
-    req.cookies.has('__session') ||
-    req.cookies.has('__clerk_session')
-  );
-}
-
+// Export our middleware for handling redirects
 export function middleware(req: NextRequest) {
-  // Check if user is on the home page
   const isHomePage = req.nextUrl.pathname === '/';
+  const isDashboardPage = req.nextUrl.pathname.startsWith('/dashboard');
   
-  if (isHomePage) {
-    try {
-      // Check if user is authenticated
-      if (isUserAuthenticated(req)) {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    } catch (error) {
-      console.error("Error in middleware:", error);
-    }
+  // Check for authentication cookies to determine if user is logged in
+  const hasAuthCookies = 
+    req.cookies.has('__clerk_db_jwt') || 
+    req.cookies.has('__session');
+  
+  // Redirect authenticated users from home to dashboard
+  if (isHomePage && hasAuthCookies) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+  
+  // Redirect unauthenticated users from dashboard to home
+  if (isDashboardPage && !hasAuthCookies) {
+    // Create a response that redirects to home
+    const response = NextResponse.redirect(new URL('/', req.url));
+    
+    // Clear any potentially invalid Clerk cookies
+    response.cookies.delete('__clerk_db_jwt');
+    response.cookies.delete('__session');
+    response.cookies.delete('__clerk_session');
+    
+    return response;
   }
   
   // Proceed with the request

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -9,13 +9,60 @@ import { api } from "../../../convex/_generated/api";
 import ExpenseForm from "@/components/expenses/expense-form";
 import ExpenseList from "@/components/expenses/expense-list";
 import MonthlyComparison from "@/components/expenses/monthly-comparison";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const { isSignedIn, isLoaded } = useAuth();
+  const router = useRouter();
+  
+  // Add error state for queries
+  const [hasQueryError, setHasQueryError] = useState(false);
+  
+  // Handle errors from Convex queries
+  const handleQueryError = (error: Error) => {
+    console.error("Error fetching data:", error);
+    if (error.message.includes("Unauthorized")) {
+      setHasQueryError(true);
+    }
+  };
+  
+  // Safely handle possible auth errors with Convex queries
   const currentMonthTotal = useQuery(api.expenses.currentMonthTotal);
   const monthComparison = useQuery(api.expenses.compareMonths);
-  const expenses = useQuery(api.expenses.list);
+  const expenses = useQuery(api.expenses.list, {});
+  
+  // Handle query errors if they occur
+  useEffect(() => {
+    const queries = [
+      { name: 'currentMonthTotal', value: currentMonthTotal },
+      { name: 'monthComparison', value: monthComparison },
+      { name: 'expenses', value: expenses }
+    ];
+    
+    for (const query of queries) {
+      if (query.value instanceof Error) {
+        console.error(`Error in ${query.name} query:`, query.value);
+        if (query.value.message.includes("Unauthorized")) {
+          setHasQueryError(true);
+          break;
+        }
+      }
+    }
+  }, [currentMonthTotal, monthComparison, expenses]);
+  
+  // Redirect if auth error detected
+  useEffect(() => {
+    if (hasQueryError || (isLoaded && !isSignedIn)) {
+      // Clear cookies and redirect to home
+      document.cookie = "__clerk_db_jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "__session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "__clerk_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
+      router.push("/");
+    }
+  }, [hasQueryError, isSignedIn, isLoaded, router]);
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-950 text-white">

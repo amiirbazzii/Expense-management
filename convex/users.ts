@@ -85,4 +85,96 @@ export const updatePreferences = mutation({
       preferences: args.preferences,
     });
   },
+});
+
+// Create a user from Clerk webhook
+export const createUser = mutation({
+  args: {
+    clerkId: v.string(),
+    email: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", q => q.eq("userId", args.clerkId))
+      .unique();
+    
+    if (existingUser) {
+      // User already exists, return existing user ID
+      return existingUser._id;
+    }
+    
+    // Create new user
+    return await ctx.db.insert("users", {
+      userId: args.clerkId,
+      name: `${args.firstName || ''} ${args.lastName || ''}`.trim(),
+      email: args.email || '',
+      imageUrl: args.imageUrl,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// Update a user from Clerk webhook
+export const updateUser = mutation({
+  args: {
+    clerkId: v.string(),
+    email: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Find the user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", q => q.eq("userId", args.clerkId))
+      .unique();
+    
+    if (!user) {
+      // User not found, create them
+      return await ctx.db.insert("users", {
+        userId: args.clerkId,
+        name: `${args.firstName || ''} ${args.lastName || ''}`.trim(),
+        email: args.email || '',
+        imageUrl: args.imageUrl,
+        updatedAt: Date.now(),
+      });
+    }
+    
+    // Update existing user
+    return await ctx.db.patch(user._id, {
+      name: `${args.firstName || ''} ${args.lastName || ''}`.trim(),
+      email: args.email || '',
+      imageUrl: args.imageUrl,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Delete a user from Clerk webhook
+export const deleteUser = mutation({
+  args: {
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", q => q.eq("userId", args.clerkId))
+      .unique();
+    
+    if (!user) {
+      // User not found
+      return null;
+    }
+    
+    // Delete the user
+    await ctx.db.delete(user._id);
+    return user._id;
+  },
 }); 

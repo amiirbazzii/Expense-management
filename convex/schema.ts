@@ -16,6 +16,9 @@ export default defineSchema({
     userId: v.string(),
     name: v.string(),
     email: v.string(),
+    imageUrl: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
     preferences: v.optional(v.object({
       currency: v.optional(v.string()),
       notificationsEnabled: v.optional(v.boolean()),
