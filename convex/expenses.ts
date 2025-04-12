@@ -36,7 +36,8 @@ export const list = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      // Return empty list if not authenticated, instead of throwing error
+      return []; 
     }
     
     const userId = identity.subject;
@@ -54,15 +55,30 @@ export const list = query({
 export const getById = query({
   args: { id: v.id("expenses") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    // Allow reading if user is not logged in, but check ownership later
+    // if (!identity) {
+    //   throw new Error("Unauthorized"); 
+    // }
+    
     const expense = await ctx.db.get(args.id);
     
     if (!expense) {
       return null;
     }
     
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || expense.userId !== identity.subject) {
-      throw new Error("Unauthorized");
+    // Check ownership only if the user is logged in
+    if (identity && expense.userId !== identity.subject) {
+      throw new Error("Unauthorized to view this expense");
+    }
+    // If user is not logged in, we might still want to prevent access
+    // depending on the app's logic. For now, let's assume public read is okay
+    // if it exists, but usually you'd want to restrict this.
+    // Consider adding a check here if expenses shouldn't be public at all.
+    if (!identity) {
+        // Decide if anonymous users can see expenses by ID. Usually not.
+        // Throwing error here prevents anonymous access.
+        throw new Error("Unauthorized: Login required to view expense details");
     }
     
     return expense;
@@ -75,7 +91,8 @@ export const currentMonthTotal = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      // Return 0 if user is not logged in
+      return 0; 
     }
     
     const userId = identity.subject;
@@ -105,7 +122,8 @@ export const dailyTotal = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      // Return 0 if user is not logged in
+      return 0;
     }
     
     const userId = identity.subject;
@@ -135,7 +153,13 @@ export const compareMonths = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      // Return default comparison if user is not logged in
+      return {
+        currentMonth: 0,
+        previousMonth: 0,
+        difference: 0,
+        percentage: 0,
+      };
     }
     
     const userId = identity.subject;
@@ -179,7 +203,7 @@ export const compareMonths = query({
       difference: currentMonthTotal - previousMonthTotal,
       percentage: previousMonthTotal > 0 
         ? ((currentMonthTotal - previousMonthTotal) / previousMonthTotal * 100) 
-        : 0,
+        : (currentMonthTotal > 0 ? 100 : 0), // Handle case where previous month is 0
     };
   },
-}); 
+});
